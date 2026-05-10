@@ -66,6 +66,12 @@ void hooked_exit(int code) {
 }
 
 void* hooked_dlopen(const char* path, int mode) {
+    if (path != NULL && strstr(path, "sable_rapier") != NULL) {
+        // Перенаправляем путь в папку Frameworks внутри приложения
+        char newPath[PATH_MAX];
+        snprintf(newPath, sizeof(newPath), "%s/Frameworks/sable_rapier_aarch64_macos.dylib", [[NSBundle mainBundle] privateFrameworksPath].UTF8String);
+        return orig_dlopen(newPath, mode);
+    }
     BOOL shouldUseDyldBypass26PPL = NO;
     if (DeviceHasJITFlags(JIT_FLAG_FORCE_MIRRORED)) {
         shouldUseDyldBypass26PPL = hwRedirectOrig[0] && !DeviceHasJITFlags(JIT_FLAG_HAS_TXM);
