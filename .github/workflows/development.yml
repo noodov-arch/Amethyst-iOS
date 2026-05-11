@@ -50,11 +50,10 @@ jobs:
           ' Natives/JavaLauncher.m
 
           # 2. Исправляем ошибку Undefined symbols _UISolariumEnabled
-          # Находим все упоминания этого символа и заменяем их на 0 (False)
           find . -name "*.m" -exec sed -i '' 's/_UISolariumEnabled()/0/g' {} +
           find . -name "*.m" -exec sed -i '' 's/_UISolariumEnabled/0/g' {} +
           
-          # 3. Добавляем флаги для игнорирования строгих проверок
+          # 3. Добавляем флаги
           export CFLAGS="$CFLAGS -Wno-error=implicit-function-declaration"
 
       - name: Get gl4es latest commit hash
@@ -67,12 +66,9 @@ jobs:
           export JAVA_HOME=${JAVA_HOME_8_X64:-$JAVA_HOME}
           export PATH=$JAVA_HOME/bin:/opt/homebrew/bin:$PATH
           export SLIMMED=1
-          
-          # Разрешаем линковщику пропускать неопределенные символы (на всякий случай)
           export LDFLAGS="-Wl,-undefined,dynamic_lookup"
           export CFLAGS="-Wno-error=implicit-function-declaration"
           
-          # Фикс Makefile: заменяем вызов системного java_home на нашу переменную
           sed -i '' "s|\$(shell /usr/libexec/java_home -v 1.8)|$JAVA_HOME|g" Makefile || true
           sed -i '' "s|\$(shell /usr/libexec/java_home -v 1.8.0)|$JAVA_HOME|g" Makefile || true
           
@@ -88,7 +84,7 @@ jobs:
       - name: Inject Sable Dylib
         run: |
           if [ ! -f "sable_rapier_binaries.zip.l4z" ]; then
-            echo "Warning: sable_rapier_binaries.zip.l4z not found. Skipping injection."
+            echo "Warning: sable_rapier_binaries.zip.l4z not found."
           else
             lz4 -d sable_rapier_binaries.zip.l4z sable_rapier_binaries.zip
             unzip -q sable_rapier_binaries.zip -d sable_natives
@@ -109,9 +105,26 @@ jobs:
             done
           fi
 
-      - name: Upload Artifacts
+      - name: Upload Standard IPA (SideStore/AltStore)
         uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: Amethyst-Custom-Build
-          path: artifacts/*
+          name: Amethyst-Standard
+          path: artifacts/org.angelauramc.amethyst-*-ios.ipa
+
+      - name: Upload TrollStore Version (TIPA)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Amethyst-TrollStore
+          path: artifacts/org.angelauramc.amethyst-*-trollstore.tipa
+
+      - name: Upload Slimmed IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Amethyst-Slimmed
+          path: artifacts/org.angelauramc.amethyst.slimmed-*-ios.ipa
+
+      - name: Upload Slimmed TrollStore
+        uses: actions/upload-artifact@v4
+        with:
+          name: Amethyst-Slimmed-TrollStore
+          path: artifacts/org.angelauramc.amethyst.slimmed-*-trollstore.tipa
