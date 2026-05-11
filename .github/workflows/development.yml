@@ -19,7 +19,7 @@ jobs:
           - platform: 2
             platform_name: ios
     
-    runs-on: macos-15-intel
+    runs-on: macos-13
     steps:
       - name: Remove work folders
         run: |
@@ -44,7 +44,7 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          brew install make cmake ldid wget
+          brew install make cmake ldid wget lz4
 
       - name: Get gl4es latest commit hash
         id: gl4es-sha
@@ -91,13 +91,16 @@ jobs:
 
       - name: Build for ${{ matrix.platform_name }}
         run: |
-          export PATH=/opt/homebrew/bin:$PATH
+          # Принудительно передаем пути Java 8 для Makefile
+          export JAVA_HOME=${JAVA_HOME_8_X64:-$JAVA_HOME}
+          export PATH=$JAVA_HOME/bin:/opt/homebrew/bin:$PATH
           export SLIMMED=1
-          if [ "${{ matrix.platform_name }}" == "ios" ]; then
+          
+          if[ "${{ matrix.platform_name }}" == "ios" ]; then
             # Build ipa and tipa for iOS
             gmake -j$(sysctl -n hw.ncpu) dsym package PLATFORM=${{ matrix.platform }}
             gmake -j$(sysctl -n hw.ncpu) dsym package PLATFORM=${{ matrix.platform }} TROLLSTORE_JIT_ENT=1
-          elif [ "${{ matrix.platform_name }}" == "tvos" ]; then
+          elif[ "${{ matrix.platform_name }}" == "tvos" ]; then
             # Build tipa only for tvOS
             gmake -j$(sysctl -n hw.ncpu) dsym package PLATFORM=${{ matrix.platform }} TROLLSTORE_JIT_ENT=1
           else
@@ -107,13 +110,26 @@ jobs:
 
       - name: Inject Sable Dylib
         run: |
-          brew install lz4
+          # Распаковываем библиотеку из архива мода
           lz4 -d sable_rapier_binaries.zip.l4z sable_rapier_binaries.zip
-          unzip sable_rapier_binaries.zip -d sable_natives
+          unzip -q sable_rapier_binaries.zip -d sable_natives
           
-          APP_PATH=$(find . -type d -name "*.app" | head -n 1)
-          mkdir -p "$APP_PATH/Frameworks"
-          find sable_natives -name "sable_rapier_aarch64_macos.dylib" -exec cp {} "$APP_PATH/Frameworks/" \;
+          # Заходим в папку с готовыми IPA-файлами и вшиваем библиотеку в каждый!
+          cd artifacts
+          for file in *.{ipa,tipa}; do
+            if [ -f "$file" ]; then
+              echo "Injecting Sable into $file..."
+              unzip -q "$file" -d tmp_extract
+              APP_DIR=$(find tmp_extract/Payload -type d -name "*.app" | head -n 1)
+              mkdir -p "$APP_DIR/Frameworks"
+              find ../sable_natives -name "sable_rapier_aarch64_macos.dylib" -exec cp {} "$APP_DIR/Frameworks/" \;
+              cd tmp_extract
+              zip -qr "../$file" Payload
+              cd ..
+              rm -rf tmp_extract
+              echo "Successfully injected into $file"
+            fi
+          done
 
       - name: Upload regular ipa
         uses: actions/upload-artifact@v4
