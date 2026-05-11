@@ -53,7 +53,7 @@ jobs:
           find . -name "*.m" -exec sed -i '' 's/_UISolariumEnabled()/0/g' {} +
           find . -name "*.m" -exec sed -i '' 's/_UISolariumEnabled/0/g' {} +
           
-          # 3. Добавляем флаги
+          # 3. Добавляем флаги для игнорирования строгих проверок компилятора
           export CFLAGS="$CFLAGS -Wno-error=implicit-function-declaration"
 
       - name: Get gl4es latest commit hash
@@ -63,12 +63,14 @@ jobs:
 
       - name: Build for ${{ matrix.platform_name }}
         run: |
+          # Принудительно настраиваем пути к Java 8 для Makefile
           export JAVA_HOME=${JAVA_HOME_8_X64:-$JAVA_HOME}
           export PATH=$JAVA_HOME/bin:/opt/homebrew/bin:$PATH
           export SLIMMED=1
           export LDFLAGS="-Wl,-undefined,dynamic_lookup"
           export CFLAGS="-Wno-error=implicit-function-declaration"
           
+          # Фикс Makefile: заменяем вызов системного java_home на нашу переменную окружения
           sed -i '' "s|\$(shell /usr/libexec/java_home -v 1.8)|$JAVA_HOME|g" Makefile || true
           sed -i '' "s|\$(shell /usr/libexec/java_home -v 1.8.0)|$JAVA_HOME|g" Makefile || true
           
@@ -83,43 +85,64 @@ jobs:
 
       - name: Inject Sable Dylib
         run: |
+          # 1. Проверка исходного файла
           if [ ! -f "sable_rapier_binaries.zip.l4z" ]; then
-            echo "Error: sable_rapier_binaries.zip.l4z not found!"
+            echo "Error: sable_rapier_binaries.zip.l4z not found in root!"
             exit 1
           fi
+
+          # 2. Распаковка архива мода
           lz4 -d sable_rapier_binaries.zip.l4z sable_rapier_binaries.zip
           unzip -q sable_rapier_binaries.zip -d sable_natives
           
-          # ДОСТАЕМ БИБЛИОТЕКУ
-          DYLIB_FILE=$(find sable_natives -name "sable_rapier_aarch64_macos.dylib" | head -n 1)
+          # 3. Поиск и патч библиотеки (меняем платформу macOS на iOS)
+          DYLIB_PATH=$(find sable_natives -name "sable_rapier_aarch64_macos.dylib" | head -n 1)
+          if [ -z "$DYLIB_PATH" ]; then
+            echo "Error: dylib not found inside the zip!"
+            exit 1
+          fi
           
-          # МАГИЯ: Меняем платформу в заголовке с macOS на iOS
-          # 2 - это ID платформы iOS
-          xcrun vtool -set-build-version 2 15.0 15.0 -replace -output "$DYLIB_FILE" "$DYLIB_FILE"
+          echo "Found library: $DYLIB_PATH. Patching platform ID for iOS..."
+          # Платформа 2 - это iOS. Платформа 1 - это macOS. Мы переписываем заголовок.
+          xcrun vtool -set-build-version 2 15.0 15.0 -replace -output "$DYLIB_PATH" "$DYLIB_PATH"
           
+          # Сохраняем полный путь к либе
+          FULL_DYLIB_PATH="$(pwd)/$DYLIB_PATH"
+
+          # 4. Внедрение в каждый собранный пакет IPA и TIPA
           cd artifacts
-          for file in *.{ipa,tipa}; do
+          for file in *.ipa *.tipa; do
             if [ -f "$file" ]; then
               echo "Injecting Patched Sable into $file..."
               unzip -q "$file" -d tmp_extract
+              
+              # Ищем папку .app внутри архива
               APP_DIR=$(find tmp_extract/Payload -type d -name "*.app" | head -n 1)
-              mkdir -p "$APP_DIR/Frameworks"
-              cp "$GITHUB_WORKSPACE/$DYLIB_FILE" "$APP_DIR/Frameworks/sable_rapier_aarch64_macos.dylib"
-              cd tmp_extract
-              zip -qr "../$file" Payload
-              cd ..
+              if [ -d "$APP_DIR" ]; then
+                mkdir -p "$APP_DIR/Frameworks"
+                cp "$FULL_DYLIB_PATH" "$APP_DIR/Frameworks/sable_rapier_aarch64_macos.dylib"
+                
+                # Собираем IPA обратно
+                cd tmp_extract
+                zip -qr "../$file" Payload
+                cd ..
+                echo "Successfully updated $file"
+              else
+                echo "Warning: Could not find .app folder inside $file"
+              fi
+              
+              # Очистка временных файлов
               rm -rf tmp_extract
             fi
           done
-          fi
 
-      - name: Upload Standard IPA (SideStore/AltStore)
+      - name: Upload Standard IPA (SideStore)
         uses: actions/upload-artifact@v4
         with:
           name: Amethyst-Standard
           path: artifacts/org.angelauramc.amethyst-*-ios.ipa
 
-      - name: Upload TrollStore Version (TIPA)
+      - name: Upload TrollStore Version
         uses: actions/upload-artifact@v4
         with:
           name: Amethyst-TrollStore
