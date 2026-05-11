@@ -4,7 +4,7 @@ on:
   pull_request:
     branches-ignore:
       - 'l10n_main'
-    types:[opened, reopened]
+    types: [opened, reopened]
   push:
     branches-ignore:
       - 'l10n_main'
@@ -95,9 +95,9 @@ jobs:
           export PATH=$JAVA_HOME/bin:/opt/homebrew/bin:$PATH
           export SLIMMED=1
           
-          # ЧИНИМ MAKEFILE: Удаляем системную проверку Apple и подставляем нашу Java
-          sed -i '' 's|$(shell /usr/libexec/java_home -v 1.8)|'"$JAVA_HOME"'|g' Makefile || true
-          sed -i '' 's|$(shell /usr/libexec/java_home -v 1.8.0)|'"$JAVA_HOME"'|g' Makefile || true
+          # Фикс Makefile: заменяем вызов системного java_home на нашу переменную
+          sed -i '' "s|\$(shell /usr/libexec/java_home -v 1.8)|$JAVA_HOME|g" Makefile || true
+          sed -i '' "s|\$(shell /usr/libexec/java_home -v 1.8.0)|$JAVA_HOME|g" Makefile || true
           
           if [ "${{ matrix.platform_name }}" == "ios" ]; then
             gmake -j$(sysctl -n hw.ncpu) dsym package PLATFORM=${{ matrix.platform }} JAVA_HOME="$JAVA_HOME"
@@ -110,6 +110,12 @@ jobs:
 
       - name: Inject Sable Dylib
         run: |
+          # Проверяем наличие файла перед распаковкой
+          if [ ! -f "sable_rapier_binaries.zip.l4z" ]; then
+            echo "Error: sable_rapier_binaries.zip.l4z not found in root directory!"
+            exit 1
+          fi
+
           lz4 -d sable_rapier_binaries.zip.l4z sable_rapier_binaries.zip
           unzip -q sable_rapier_binaries.zip -d sable_natives
           
@@ -122,44 +128,3 @@ jobs:
               mkdir -p "$APP_DIR/Frameworks"
               find ../sable_natives -name "sable_rapier_aarch64_macos.dylib" -exec cp {} "$APP_DIR/Frameworks/" \;
               cd tmp_extract
-              zip -qr "../$file" Payload
-              cd ..
-              rm -rf tmp_extract
-              echo "Successfully injected into $file"
-            fi
-          done
-
-      - name: Upload regular ipa
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: org.angelauramc.amethyst-${{ matrix.platform_name }}.ipa
-          path: artifacts/org.angelauramc.amethyst-*-${{ matrix.platform_name }}.ipa
-
-      - name: Upload regular tipa
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: org.angelauramc.amethyst-${{ matrix.platform_name }}-trollstore.tipa
-          path: artifacts/org.angelauramc.amethyst-*-${{ matrix.platform_name }}-trollstore.tipa
-
-      - name: Upload slimmed ipa
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: org.angelauramc.amethyst.slimmed-${{ matrix.platform_name }}.ipa
-          path: artifacts/org.angelauramc.amethyst.slimmed-*-${{ matrix.platform_name }}.ipa
-
-      - name: Upload slimmed tipa
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: org.angelauramc.amethyst.slimmed-${{ matrix.platform_name }}-trollstore.tipa
-          path: artifacts/org.angelauramc.amethyst.slimmed-*-${{ matrix.platform_name }}-trollstore.tipa
-
-      - name: Upload PojavLauncher.dSYM
-        uses: actions/upload-artifact@v4
-        if: matrix.platform_name == 'ios'
-        with:
-          name: AngelAuraAmethyst.dSYM
-          path: artifacts/AngelAuraAmethyst.dSYM
