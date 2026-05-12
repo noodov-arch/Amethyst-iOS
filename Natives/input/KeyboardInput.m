@@ -107,10 +107,10 @@ int keycodeTable[UIKeyboardHIDUsageKeyboardRightGUI+1];
 
     // send the keycode
     int keycode = keycodeTable[key.keyCode];
+    BOOL handled = NO;
     if (keycode != 0) {
         CallbackBridge_nativeSendKey(keycode, 0 /* scancode */, isDown, modifiers);
-    } else {
-        NSLog(@"KeyboardInput: Unhandled key %lu", (unsigned long)key.keyCode);
+        handled = YES;
     }
 
     // key.characters.length < 11: skip sending characters if the string starts with UIKeyInput
@@ -120,9 +120,10 @@ int keycodeTable[UIKeyboardHIDUsageKeyboardRightGUI+1];
             CallbackBridge_nativeSendCharMods(keychar, modifiers);
             CallbackBridge_nativeSendChar(keychar);
         }
+        handled = YES;
     }
 
-    return keycode != 0 || isDown;
+    return handled;
 }
 
 @end
