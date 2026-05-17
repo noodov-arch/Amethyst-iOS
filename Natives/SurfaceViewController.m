@@ -26,6 +26,10 @@
 
 #include <dlfcn.h>
 
+
+// ГЛОБАЛЬНЫЙ ПЕРЕКЛЮЧАТЕЛЬ (без слова static)
+BOOL isCustomRussianLayout = NO;
+
 int memorystatus_control(uint32_t command, int32_t pid, uint32_t flags, void *buffer, size_t buffersize);
 #define MEMORYSTATUS_CMD_SET_JETSAM_TASK_LIMIT        6
 
@@ -621,7 +625,32 @@ static GameSurfaceView* pojavWindow;
 - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     BOOL handled = NO;
 
-    for (UIPress *press in presses) {
+    for (UIPress *press in presses) { // --- НАШ ПЕРЕХВАТЧИК КНОПКИ F12 ---
+        if (press.key.keyCode == UIKeyboardHIDUsageKeyboardF12) {
+            isCustomRussianLayout = !isCustomRussianLayout;
+            
+            // Рисуем красивое всплывающее уведомление на экране!
+            dispatch_async(dispatch_get_main_queue(), ^{
+                UIWindow *window = [UIApplication sharedApplication].keyWindow;
+                UILabel *toast = [[UILabel alloc] initWithFrame:CGRectMake(window.bounds.size.width/2 - 75, 60, 150, 40)];
+                toast.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.85];
+                toast.textColor = [UIColor whiteColor];
+                toast.textAlignment = NSTextAlignmentCenter;
+                toast.layer.cornerRadius = 20;
+                toast.clipsToBounds = YES;
+                toast.font = [UIFont boldSystemFontOfSize:16];
+                toast.text = isCustomRussianLayout ? @"🇷🇺 Русский" : @"🇺🇸 English";
+                [window addSubview:toast];
+                
+                [UIView animateWithDuration:2.0 animations:^{
+                    toast.alpha = 0;
+                } completion:^(BOOL finished) {
+                    [toast removeFromSuperview];
+                }];
+            });
+            return; // Останавливаем обработку, чтобы F12 не ушла в Minecraft
+        }
+        // ----------------------------------
         if (press.key != nil && [KeyboardInput sendKeyEvent:press.key down:YES]) {
             handled = YES;
         }
