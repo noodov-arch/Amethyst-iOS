@@ -2,6 +2,8 @@
 #import "UIKit+hook.h"
 #import "utils.h"
 
+// Ссылаемся на рубильник из первого файла
+
 @interface PickViewController : UIViewController
 @property(nonatomic, assign) UITextField *textField;
 @end

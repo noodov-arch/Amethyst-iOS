@@ -26,9 +26,20 @@
 
 #include <dlfcn.h>
 
+// === СИСТЕМА ПЕРЕВОДА ЯЗЫКА ===
+static BOOL isCustomRussianLayout = NO;
 
-// ГЛОБАЛЬНЫЙ ПЕРЕКЛЮЧАТЕЛЬ (без слова static)
-BOOL isCustomRussianLayout = NO;
+static unsigned short translateCharToRu(unsigned short c) {
+    switch (c) {
+        case 'q': return 1081; case 'w': return 1094; case 'e': return 1091; case 'r': return 1082; case 't': return 1077; case 'y': return 1085; case 'u': return 1075; case 'i': return 1096; case 'o': return 1097; case 'p': return 1079; case '[': return 1093; case ']': return 1098;
+        case 'a': return 1092; case 's': return 1099; case 'd': return 1074; case 'f': return 1072; case 'g': return 1087; case 'h': return 1088; case 'j': return 1086; case 'k': return 1083; case 'l': return 1076; case ';': return 1078; case '\'': return 1101;
+        case 'z': return 1103; case 'x': return 1095; case 'c': return 1089; case 'v': return 1084; case 'b': return 1080; case 'n': return 1090; case 'm': return 1100; case ',': return 1073; case '.': return 1102; case '/': return '.';
+        case 'Q': return 1049; case 'W': return 1062; case 'E': return 1059; case 'R': return 1050; case 'T': return 1045; case 'Y': return 1053; case 'U': return 1043; case 'I': return 1064; case 'O': return 1065; case 'P': return 1047; case '{': return 1061; case '}': return 1066;
+        case 'A': return 1060; case 'S': return 1067; case 'D': return 1042; case 'F': return 1040; case 'G': return 1055; case 'H': return 1056; case 'J': return 1054; case 'K': return 1051; case 'L': return 1044; case ':': return 1046; case '"': return 1069;
+        case 'Z': return 1071; case 'X': return 1063; case 'C': return 1057; case 'V': return 1052; case 'B': return 1048; case 'N': return 1050; case 'M': return 1068; case '<': return 1041; case '>': return 1070; case '?': return ',';
+        default: return c;
+    }
+}
 
 int memorystatus_control(uint32_t command, int32_t pid, uint32_t flags, void *buffer, size_t buffersize);
 #define MEMORYSTATUS_CMD_SET_JETSAM_TASK_LIMIT        6
@@ -196,9 +207,15 @@ static GameSurfaceView* pojavWindow;
     self.inputTextField.clearsOnBeginEditing = YES;
     self.inputTextField.textAlignment = NSTextAlignmentCenter;
     self.inputTextField.sendChar = ^(jchar keychar){
+        if (isCustomRussianLayout) {
+            keychar = (jchar)translateCharToRu(keychar);
+        }
         CallbackBridge_nativeSendChar(keychar);
     };
     self.inputTextField.sendCharMods = ^(jchar keychar, int mods){
+        if (isCustomRussianLayout) {
+            keychar = (jchar)translateCharToRu(keychar);
+        }
         CallbackBridge_nativeSendCharMods(keychar, mods);
     };
     self.inputTextField.sendKey = ^(int key, int scancode, int action, int mods) {
